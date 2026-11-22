@@ -9,6 +9,9 @@ public class PluginConfiguration : BasePluginConfiguration
 {
     public List<OidcProviderConfig> Providers { get; set; } = new();
 
+    /// Explicit, administrator-configured verified email to existing user bindings.
+    public List<EmailUserMapping> EmailUserMappings { get; set; } = new();
+
     public List<RoleMapping> RoleMappings { get; set; } = new();
 
     /// <summary>The provider with this id, matched case-insensitively, or null.</summary>
@@ -109,6 +112,13 @@ public class UserProviderEntry
     /// restart (in-memory session table gone) can still resolve the user.
     /// </summary>
     public string LogoutSid { get; set; } = string.Empty;
+}
+
+public class EmailUserMapping
+{
+    public string ProviderId { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
 }
 
 public class OidcProviderConfig

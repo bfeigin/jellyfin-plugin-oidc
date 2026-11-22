@@ -209,7 +209,8 @@ public sealed class UserProviderMapStore : IHostedService
         lock (_gate)
         {
             var e = _entries.FirstOrDefault(x =>
-                (subject.Length > 0 && string.Equals(x.Subject, subject, StringComparison.Ordinal))
+                (subject.Length > 0 && string.Equals(x.ProviderId, providerId, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(x.Subject, subject, StringComparison.Ordinal))
                 || string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase));
 
             var providerMismatch = e != null && !string.IsNullOrEmpty(e.ProviderId)

@@ -749,4 +749,120 @@ public class UserSyncServiceTests
         Assert.Equal(concurrentLogins, entries.Count);
         Assert.Equal(concurrentLogins, entries.Select(e => e.Username).Distinct().Count());
     }
+    private PluginConfiguration MappingConfig(User target, bool trusted = true, bool migrate = true)
+        => new()
+        {
+            AutoCreateUsers = false,
+            MigrateLocalUsers = migrate,
+            Providers = [new OidcProviderConfig { ProviderId = "google", TrustedForEmailLinking = trusted, SyncDisplayName = true }],
+            EmailUserMappings = [new EmailUserMapping { ProviderId = "google", Email = "alice@gmail.com", UserId = target.Id.ToString() }]
+        };
+
+    [Fact]
+    public async Task ExplicitMapping_ReusesLocalUserWithoutRenaming_AndBindsSubject()
+    {
+        var target = MakeLocalUser("existing-alice");
+        var manager = Substitute.For<IUserManager>();
+        manager.GetUserById(target.Id).Returns(target);
+        var config = MappingConfig(target);
+        _fixture.SetConfiguration(config);
+        var service = MakeService(manager);
+        var result = await service.SyncUserAsync("alice@gmail.com", "Different Name", "google-sub", " ALICE@gmail.com ", true, "GOOGLE");
+        Assert.Equal(target.Id, result);
+        Assert.Equal("existing-alice", target.Username);
+        Assert.Equal(OidcProviderId, target.AuthenticationProviderId);
+        Assert.Equal(target.Id.ToString(), _fixture.MapStore.FindBySubject("google", "google-sub")!.UserId);
+        Assert.Equal(target.Id, await service.SyncUserAsync("changed-claim", "Other", "google-sub", "alice@gmail.com", true, "google"));
+        await manager.DidNotReceive().CreateUserAsync(Arg.Any<string>());
+        await manager.DidNotReceive().RenameUser(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>());
+    }
+
+    [Theory]
+    [InlineData(false, true, true, "sub")]
+    [InlineData(true, false, true, "sub")]
+    [InlineData(true, true, false, "sub")]
+    [InlineData(true, true, true, "")]
+    public async Task ExplicitMapping_RequiresVerifiedEmailTrustedProviderMigrationAndSubject(bool verified, bool trusted, bool migrate, string subject)
+    {
+        var target = MakeLocalUser("existing-alice");
+        var manager = Substitute.For<IUserManager>();
+        manager.GetUserById(target.Id).Returns(target);
+        _fixture.SetConfiguration(MappingConfig(target, trusted, migrate));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MakeService(manager)
+            .SyncUserAsync("alice@gmail.com", null, subject, "alice@gmail.com", verified, "google"));
+        Assert.Equal(LocalProviderId, target.AuthenticationProviderId);
+        Assert.Empty(_fixture.MapStore.Snapshot());
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("disabled")]
+    [InlineData("admin")]
+    public async Task ExplicitMapping_UnavailableTargetFailsClosed(string kind)
+    {
+        var target = MakeLocalUser("existing-alice");
+        target.SetPermission(PermissionKind.IsDisabled, kind == "disabled");
+        target.SetPermission(PermissionKind.IsAdministrator, kind == "admin");
+        var manager = Substitute.For<IUserManager>();
+        if (kind != "missing") manager.GetUserById(target.Id).Returns(target);
+        _fixture.SetConfiguration(MappingConfig(target));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MakeService(manager)
+            .SyncUserAsync("alice@gmail.com", null, "sub", "alice@gmail.com", true, "google"));
+        Assert.Empty(_fixture.MapStore.Snapshot());
+        await manager.DidNotReceive().CreateUserAsync(Arg.Any<string>());
+    }
+
+    [Theory]
+    [InlineData("other@gmail.com", "google")]
+    [InlineData("alice@gmail.com", "other-provider")]
+    public async Task ExplicitMapping_ReservesTargetAgainstUsernameFallback(string email, string provider)
+    {
+        var target = MakeLocalUser("existing-alice");
+        var manager = Substitute.For<IUserManager>();
+        manager.GetUserByName(target.Username).Returns(target);
+        _fixture.SetConfiguration(MappingConfig(target));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MakeService(manager)
+            .SyncUserAsync(target.Username, null, "sub", email, true, provider));
+        Assert.Equal(LocalProviderId, target.AuthenticationProviderId);
+        Assert.Empty(_fixture.MapStore.Snapshot());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ExplicitMapping_DoesNotStealExistingSubjectOrTarget(bool subjectOwned)
+    {
+        var target = MakeLocalUser("existing-alice");
+        var other = MakeOidcUser("other");
+        var manager = Substitute.For<IUserManager>();
+        manager.GetUserById(target.Id).Returns(target);
+        manager.GetUserById(other.Id).Returns(other);
+        var config = MappingConfig(target);
+        config.UserProviderMap = [UserProviderMapStore.CreateEntry(
+            subjectOwned ? other.Username : target.Username, "google", subjectOwned ? "sub" : "other-sub",
+            (subjectOwned ? other.Id : target.Id).ToString(), "other@gmail.com", true)];
+        _fixture.SetConfiguration(config);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MakeService(manager)
+            .SyncUserAsync("alice@gmail.com", null, "sub", "alice@gmail.com", true, "google"));
+        Assert.Equal(LocalProviderId, target.AuthenticationProviderId);
+        Assert.Equal(subjectOwned ? "sub" : "other-sub", Assert.Single(_fixture.MapStore.Snapshot()).Subject);
+    }
+
+    [Fact]
+    public async Task ExplicitMapping_SameSubjectFromDifferentProviderDoesNotCollide()
+    {
+        var target = MakeLocalUser("existing-alice");
+        var other = MakeOidcUser("other");
+        var manager = Substitute.For<IUserManager>();
+        manager.GetUserById(target.Id).Returns(target);
+        var config = MappingConfig(target);
+        config.UserProviderMap = [UserProviderMapStore.CreateEntry(
+            other.Username, "keycloak", "same-sub", other.Id.ToString(), "other@gmail.com", true)];
+        _fixture.SetConfiguration(config);
+        Assert.Equal(target.Id, await MakeService(manager)
+            .SyncUserAsync("alice@gmail.com", null, "same-sub", "alice@gmail.com", true, "google"));
+        Assert.Equal(other.Id.ToString(), _fixture.MapStore.FindBySubject("keycloak", "same-sub")!.UserId);
+        Assert.Equal(target.Id.ToString(), _fixture.MapStore.FindBySubject("google", "same-sub")!.UserId);
+    }
+
 }

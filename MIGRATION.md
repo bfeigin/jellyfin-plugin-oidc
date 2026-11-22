@@ -2,6 +2,38 @@
 
 If you already have Jellyfin users with watch history, favorites, playlists, etc., you can move them onto OIDC SSO without losing data - as long as the OIDC username matches the existing Jellyfin username.
 
+## Explicit email mappings (fork feature)
+
+Use **General → Email to existing user mappings** to connect a verified Google address to
+an existing non-administrator Jellyfin user without renaming the account:
+
+1. Save the Google provider, with **Trusted for email-based account linking** enabled.
+2. Keep **Require a Verified Email** enabled, and add permitted addresses to **Allowed Emails**.
+3. Add a mapping row: select **Google**, enter the full expected address, and select the
+   existing **Jellyfin user**. Save.
+4. For an existing local-password account, enable **Migrate Local Users to SSO on First OIDC Login**.
+   Its first successful mapped login switches authentication to SSO; its local password no longer works.
+5. Sign in with that Google account. The existing user ID, username, history, and preferences remain.
+   Explicit mappings suppress display-name synchronization so Google cannot rename this user.
+
+Mapping rows use stable Jellyfin user IDs and exact, case-insensitive email comparisons.
+Gmail dots and `+suffixes` are **not** normalized. One provider/email pair maps to one user,
+and each target user has at most one mapping. Save validation rejects incomplete or duplicate rows.
+A mapping selects an account; it does **not** bypass the login allowlist or grant permissions.
+Existing role mappings still apply; disable **Manage user policy** if you want to retain the
+user's current permissions and library access instead.
+
+The login requires a verified email, a nonempty OIDC subject, and a trusted provider.
+Missing or disabled targets are denied without creating a duplicate account. Administrator
+accounts remain excluded; keep a separate local administrator for recovery. A mapped user
+cannot be claimed through a different email/provider by matching its username.
+Once linked, the subject identity is stored using the existing identity store. A subject or
+target already linked to another identity causes a denial rather than silently transferring
+an account. If auto-creation previously made a duplicate, resolve that duplicate and its
+stored identity before attempting to map the same identity to another user. This feature
+neither merges watch histories nor deletes accounts. Removing a mapping does not revoke
+an established subject binding: disable the Jellyfin user or remove login admission to revoke access.
+
 ## How it works
 
 When a user completes SSO for the first time, the plugin (`UserSyncService.SyncUserAsync`) calls `_userManager.GetUserByName(username)` using the value of the configured **Username Claim** (default: `preferred_username`).
@@ -78,7 +110,7 @@ The General settings tab exposes two migration options that default to **off**:
 
 When enabled, the first time an existing local-password user successfully logs in via SSO their `AuthenticationProviderId` is automatically switched to `OidcAuthProvider`. This prevents them from continuing to use their old Jellyfin password.
 
-When disabled (default), existing users can still log in via SSO and have RBAC applied, but their password login remains active. You can disable it manually in the Jellyfin dashboard after migration if needed.
+When disabled (default), an existing local-password account cannot sign in through SSO. Its local password login remains available. Enable migration before its first SSO login.
 
 ### Sync display name from OIDC token (per-provider `SyncDisplayName`)
 

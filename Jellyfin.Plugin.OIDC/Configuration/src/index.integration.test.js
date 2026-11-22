@@ -192,4 +192,42 @@ describe('index.js default export (full page controller)', () => {
         expect(savedConfig.Providers).toHaveLength(1);
         expect(Dashboard.alert).not.toHaveBeenCalled();
     });
+    it('loads user choices and saves and removes an explicit mapping by stable user ID', async () => {
+        installJellyfinGlobals(makeConfig({ Providers: [{ ProviderId: 'google', DisplayName: 'Google', Enabled: true }] }));
+        const oldGet = ApiClient.getJSON.getMockImplementation();
+        ApiClient.getJSON.mockImplementation((url) => url.endsWith('/Users') ? Promise.resolve([
+            { Id: '11111111-1111-1111-1111-111111111111', Name: 'Existing Alice', Policy: { IsAdministrator: false } },
+            { Id: '22222222222222222222222222222222', Name: 'Admin', Policy: { IsAdministrator: true } }
+        ]) : oldGet(url));
+        initPage(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await flushMicrotasks();
+        view.querySelector('#btnAddEmailUserMapping').click();
+        const target = view.querySelector('#emailmap_user_0');
+        expect(target.textContent).toContain('Existing Alice');
+        expect(target.textContent).not.toContain('Admin');
+        target.value = '11111111111111111111111111111111';
+        view.querySelector('#emailmap_email_0').value = ' alice@gmail.com ';
+        view.querySelector('#btnSave').click();
+        await flushMicrotasks();
+        expect(ApiClient.updatePluginConfiguration.mock.calls[0][1].EmailUserMappings).toEqual([
+            { ProviderId: 'google', Email: 'alice@gmail.com', UserId: '11111111111111111111111111111111' }
+        ]);
+        view.querySelector('[data-remove-email-mapping]').click();
+        view.querySelector('#btnSave').click();
+        await flushMicrotasks();
+        expect(ApiClient.updatePluginConfiguration.mock.calls[1][1].EmailUserMappings).toEqual([]);
+    });
+
+    it('keeps a saved mapping when its target is unavailable in the user list', async () => {
+        installJellyfinGlobals(makeConfig({ EmailUserMappings: [{ ProviderId: 'google', Email: 'alice@gmail.com', UserId: '11111111111111111111111111111111' }] }));
+        initPage(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await flushMicrotasks();
+        expect(view.querySelector('#emailmap_user_0').value).toBe('11111111111111111111111111111111');
+        view.querySelector('#btnSave').click();
+        await flushMicrotasks();
+        expect(ApiClient.updatePluginConfiguration.mock.calls[0][1].EmailUserMappings[0].Email).toBe('alice@gmail.com');
+    });
+
 });

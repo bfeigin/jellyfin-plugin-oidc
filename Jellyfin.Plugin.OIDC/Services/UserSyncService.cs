@@ -84,6 +84,31 @@ public class UserSyncService
             : null;
         var resolvedBySubject = user != null;
 
+        // An explicit mapping takes priority over username lookup, but may never move an
+        // established subject to another account. Stable user IDs also survive user renames.
+        var explicitMapping = (config.EmailUserMappings ?? []).FirstOrDefault(m =>
+            string.Equals(m.ProviderId, providerId, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(m.Email.Trim(), mail, StringComparison.OrdinalIgnoreCase));
+        if (explicitMapping != null)
+        {
+            if (!emailVerified || sub.Length == 0 || !ProviderTrustedForEmailLinking(config, providerId))
+            {
+                throw new InvalidOperationException("An email mapping requires a verified email, a subject, and a provider trusted for email linking.");
+            }
+            var target = Guid.TryParse(explicitMapping.UserId, out var targetId)
+                ? _userManager.GetUserById(targetId) : null;
+            if (target == null || target.HasPermission(PermissionKind.IsDisabled)
+                || target.HasPermission(PermissionKind.IsAdministrator))
+            {
+                throw new InvalidOperationException("The mapped Jellyfin user is missing, disabled, or an administrator.");
+            }
+            if (user != null && user.Id != target.Id)
+            {
+                throw new InvalidOperationException("This OIDC identity is already bound to another Jellyfin user.");
+            }
+            user = target;
+        }
+
         // Opt-in, and only from a TrustedForEmailLinking provider: a verified email is only as
         // trustworthy as the IdP asserting it. Both stored and incoming email must be verified.
         var linkedByEmail = false;
@@ -117,6 +142,14 @@ public class UserSyncService
         }
 
         user ??= _userManager.GetUserByName(username);
+
+        // A reserved target may only be reached with its configured verified email/provider,
+        // including when a username or an old subject would otherwise resolve it.
+        if (user != null && explicitMapping == null && (config.EmailUserMappings ?? []).Any(m =>
+            Guid.TryParse(m.UserId, out var reservedId) && reservedId == user.Id))
+        {
+            throw new InvalidOperationException("This Jellyfin user requires its configured email mapping.");
+        }
 
         // A pure username match (no subject match, no vouched-email link) must never land on an
         // administrator: end users can often choose their own username at the IdP.
@@ -185,6 +218,15 @@ public class UserSyncService
             {
                 if (config.MigrateLocalUsers)
                 {
+                    if (explicitMapping != null)
+                    {
+                        var binding = _mapStore.BindOidcLogin(providerId, sub, user.Username,
+                            user.Id.ToString(), mail, emailVerified, trustLink: false);
+                        if (binding.Outcome == MapBindOutcome.Conflict)
+                        {
+                            throw new InvalidOperationException("The mapped user is already bound to another OIDC identity.");
+                        }
+                    }
                     _logger.LogInformation(
                         "Migrating user {Username} from {OldProvider} to OidcAuthProvider (provider={Provider})",
                         user.Username, user.AuthenticationProviderId ?? "none", providerId);
@@ -231,7 +273,10 @@ public class UserSyncService
             }
         }
 
-        await ApplyDisplayNameAsync(user, displayName, config, providerId).ConfigureAwait(false);
+        if (explicitMapping == null)
+        {
+            await ApplyDisplayNameAsync(user, displayName, config, providerId).ConfigureAwait(false);
+        }
 
         _logger.LogDebug(
             "Synced OIDC user: username={Username}, subject={Subject}, provider={Provider}",

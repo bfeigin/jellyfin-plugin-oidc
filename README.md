@@ -1,3 +1,7 @@
+> **Fork:** adds administrator-configured verified email → existing Jellyfin user mappings.
+> See [setup and account-linking safeguards](MIGRATION.md#explicit-email-mappings-fork-feature).
+> Install this fork using `https://raw.githubusercontent.com/bfeigin/jellyfin-plugin-oidc/main/manifest.json`.
+
 # SSO-OIDC-Authentication - Jellyfin Plugin
 
 A security-hardened Jellyfin plugin providing **OpenID Connect authentication** with

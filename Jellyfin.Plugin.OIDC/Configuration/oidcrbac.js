@@ -1019,6 +1019,73 @@ function testProvider(view, idx) {
   });
 }
 
+// Jellyfin.Plugin.OIDC/Configuration/src/emailMappings.js
+var users = [];
+function setMappingUsers(value) {
+  users = value;
+}
+function userKey(value) {
+  return String(value || "").replace(/-/g, "").toLowerCase();
+}
+function select(id, label, value, options) {
+  var found = options.some(function(o) {
+    return o.value === value;
+  });
+  var choices = [{ value: "", label: "Select " + label.toLowerCase() }].concat(options);
+  if (value && !found) choices.push({ value, label: "Unavailable: " + value });
+  return el(
+    "div",
+    { class: "selectContainer" },
+    el("label", { for: id }, esc(label)) + el("select", { id, is: "emby-select" }, choices.map(function(o) {
+      return el("option", { value: o.value, selected: o.value === value }, esc(o.label));
+    }).join(""))
+  );
+}
+function renderEmailMappings(view) {
+  var list = view.querySelector("#emailUserMappingList");
+  var providers = (cfg.Providers || []).map(function(p) {
+    return { value: p.ProviderId, label: p.DisplayName || p.ProviderId };
+  });
+  var targets = users.filter(function(u) {
+    return !(u.Policy && u.Policy.IsAdministrator);
+  }).map(function(u) {
+    return { value: userKey(u.Id), label: u.Name };
+  });
+  list.innerHTML = (cfg.EmailUserMappings || []).map(function(m, idx) {
+    return el(
+      "div",
+      { class: "oidc-item-card", "data-email-mapping": idx },
+      select("emailmap_provider_" + idx, "Provider", m.ProviderId || "", providers) + fld("Expected verified email", "email", "emailmap_email_" + idx, m.Email || "", "user@gmail.com") + select("emailmap_user_" + idx, "Jellyfin user", userKey(m.UserId), targets) + el("button", { type: "button", is: "emby-button", "data-remove-email-mapping": idx }, "Remove mapping")
+    );
+  }).join("");
+}
+function collectEmailMappings(view) {
+  return Array.from(view.querySelectorAll("[data-email-mapping]")).map(function(row) {
+    var idx = row.getAttribute("data-email-mapping");
+    return {
+      ProviderId: gval(view, "emailmap_provider_" + idx).trim(),
+      Email: gval(view, "emailmap_email_" + idx).trim(),
+      UserId: gval(view, "emailmap_user_" + idx).trim()
+    };
+  });
+}
+function setupEmailMappings(view) {
+  view.querySelector("#btnAddEmailUserMapping").addEventListener("click", function() {
+    if (!cfg) return;
+    cfg.EmailUserMappings = collectEmailMappings(view);
+    cfg.Providers = collectProviders(view);
+    cfg.EmailUserMappings.push({ ProviderId: cfg.Providers.length === 1 ? cfg.Providers[0].ProviderId : "", Email: "", UserId: "" });
+    renderEmailMappings(view);
+    setDirty(true);
+  });
+  view.querySelector("#emailUserMappingList").addEventListener("click", function(e) {
+    var button = e.target.closest("[data-remove-email-mapping]");
+    if (!button) return;
+    button.closest("[data-email-mapping]").remove();
+    setDirty(true);
+  });
+}
+
 // Jellyfin.Plugin.OIDC/Configuration/src/index.js
 function autogrowTextarea(el2) {
   if (!el2) return;
@@ -1028,6 +1095,7 @@ function autogrowTextarea(el2) {
 function index_default(view) {
   applyStrings(view);
   setDirtyView(view);
+  setupEmailMappings(view);
   window.addEventListener("beforeunload", beforeUnloadGuard);
   view.addEventListener("input", function(e) {
     setDirty(true);
@@ -1076,10 +1144,14 @@ function index_default(view) {
       }),
       ApiClient.getJSON(ApiClient.getUrl("sso/OIDC/Config/Ratings")).catch(function() {
         return [];
+      }),
+      ApiClient.getJSON(ApiClient.getUrl("Users")).catch(function() {
+        return [];
       })
     ]).then(function(results) {
       setLibs(results[0] || {});
       setRatings(results[1] || []);
+      setMappingUsers(Array.isArray(results[2]) ? results[2] : []);
     }).then(function() {
       return ApiClient.getPluginConfiguration(pluginId);
     }).then(function(config) {
@@ -1087,6 +1159,7 @@ function index_default(view) {
       config.RoleMappings = config.RoleMappings || [];
       setCfg(config);
       renderProviders(view);
+      renderEmailMappings(view);
       renderRoleMappings(view);
       schk(view, "autoCreateUsers", cfg.AutoCreateUsers !== false);
       schk(view, "migrateLocalUsers", cfg.MigrateLocalUsers === true);
@@ -1141,6 +1214,7 @@ function index_default(view) {
   });
   view.querySelector("#btnAddProvider").addEventListener("click", function() {
     if (!cfg) return;
+    cfg.EmailUserMappings = collectEmailMappings(view);
     cfg.Providers = collectProviders(view);
     cfg.Providers.push({
       ProviderId: "",
@@ -1245,6 +1319,7 @@ function index_default(view) {
       }
     }
     Dashboard.showLoadingMsg();
+    cfg.EmailUserMappings = collectEmailMappings(view);
     cfg.Providers = collectProviders(view);
     cfg.RoleMappings = collectRoleMappings(view);
     cfg.DefaultRoleName = gval(view, "defaultRoleName");

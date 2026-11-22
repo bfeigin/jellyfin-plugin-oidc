@@ -92,6 +92,27 @@ public class OidcPlugin : BasePlugin<PluginConfiguration>, IHasWebPages
                     + "letters, digits, '.', '_', and '-', up to 64 characters.");
             }
 
+            var mappings = config.EmailUserMappings ?? [];
+            foreach (var mapping in mappings)
+            {
+                mapping.ProviderId = (mapping.ProviderId ?? string.Empty).Trim();
+                mapping.Email = (mapping.Email ?? string.Empty).Trim();
+                mapping.UserId = (mapping.UserId ?? string.Empty).Trim();
+                if (!providers.Any(p => string.Equals(p.ProviderId, mapping.ProviderId, StringComparison.OrdinalIgnoreCase))
+                    || !Guid.TryParse(mapping.UserId, out var userId) || userId == Guid.Empty
+                    || !System.Net.Mail.MailAddress.TryCreate(mapping.Email, out var address)
+                    || !string.Equals(address.Address, mapping.Email, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException("Each email mapping requires an existing provider, an exact email address, and a Jellyfin user ID.");
+                }
+                mapping.UserId = userId.ToString("N");
+            }
+            if (mappings.GroupBy(m => m.ProviderId + "\n" + m.Email, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)
+                || mappings.GroupBy(m => m.UserId, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1))
+            {
+                throw new ArgumentException("Email mappings must have unique provider/email pairs and unique Jellyfin users.");
+            }
+
             // PinnedAuthority is the Issuer the current pins were established against; if the incoming
             // Authority differs, the pins are stale for an unverified issuer.
             var stalePin = providers.FirstOrDefault(p =>

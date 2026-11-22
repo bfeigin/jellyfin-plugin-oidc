@@ -13,6 +13,7 @@ import { renderRoleMappings, renderDefaultRoleOptions, collectRoleMappings, addL
 import { updateRbacManagementUi, updateEmailAllowlistUi } from './uiToggles.js';
 import { testProvider } from './testConnection.js';
 import { STRINGS, applyStrings } from './strings.js';
+import { setupEmailMappings, renderEmailMappings, collectEmailMappings, setMappingUsers } from './emailMappings.js';
 
 function autogrowTextarea(el) {
     if (!el) return;
@@ -23,6 +24,7 @@ function autogrowTextarea(el) {
 export default function (view) {
     applyStrings(view);
     setDirtyView(view);
+    setupEmailMappings(view);
 
     // Warn on reload/tab-close while edits are pending; in-SPA navigation relies on the visible indicator.
     window.addEventListener('beforeunload', beforeUnloadGuard);
@@ -70,10 +72,12 @@ export default function (view) {
 
         Promise.all([
             ApiClient.getJSON(ApiClient.getUrl('sso/OIDC/Config/Libraries')).catch(function () { return {}; }),
-            ApiClient.getJSON(ApiClient.getUrl('sso/OIDC/Config/Ratings')).catch(function () { return []; })
+            ApiClient.getJSON(ApiClient.getUrl('sso/OIDC/Config/Ratings')).catch(function () { return []; }),
+            ApiClient.getJSON(ApiClient.getUrl('Users')).catch(function () { return []; })
         ]).then(function (results) {
             setLibs(results[0] || {});
             setRatings(results[1] || []);
+            setMappingUsers(Array.isArray(results[2]) ? results[2] : []);
         }).then(function () {
             return ApiClient.getPluginConfiguration(pluginId);
         }).then(function (config) {
@@ -81,6 +85,7 @@ export default function (view) {
             config.RoleMappings = config.RoleMappings || [];
             setCfg(config);
             renderProviders(view);
+            renderEmailMappings(view);
             renderRoleMappings(view); // also fills the #defaultRoleName <select> from cfg
             schk(view, 'autoCreateUsers', cfg.AutoCreateUsers !== false);
             schk(view, 'migrateLocalUsers', cfg.MigrateLocalUsers === true);
@@ -148,6 +153,7 @@ export default function (view) {
     // Add provider
     view.querySelector('#btnAddProvider').addEventListener('click', function () {
         if (!cfg) return;
+        cfg.EmailUserMappings = collectEmailMappings(view);
         cfg.Providers = collectProviders(view);
         cfg.Providers.push({
             ProviderId: '', DisplayName: STRINGS.provider.newProviderName, Authority: '',
@@ -237,6 +243,7 @@ export default function (view) {
             }
         }
         Dashboard.showLoadingMsg();
+        cfg.EmailUserMappings = collectEmailMappings(view);
         cfg.Providers = collectProviders(view);
         cfg.RoleMappings = collectRoleMappings(view);
         cfg.DefaultRoleName = gval(view, 'defaultRoleName');

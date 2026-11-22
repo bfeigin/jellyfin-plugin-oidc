@@ -72,6 +72,12 @@
                         </div>
                     </div>
                 </fieldset>
+                <fieldset class="verticalSection-extrabottompadding oidc-mb-lg">
+                    <legend class="sectionTitle">Email to existing user mappings</legend>
+                    <p class="fieldDescription">Select the provider, exact verified email, and existing Jellyfin user. Enable “Trusted for email-based account linking” on the provider. Local users also require “Migrate Local Users” above, which replaces password login. Login allowlists and role policies still apply. Administrator accounts cannot be mapped.</p>
+                    <div id="emailUserMappingList"></div>
+                    <button type="button" id="btnAddEmailUserMapping" is="emby-button" class="raised">Add email mapping</button>
+                </fieldset>
                 <fieldset class="verticalSection-extrabottompadding oidc-flush">
                     <legend class="sectionTitle oidc-mb-md" data-str="loginPage.legend">Login Page</legend>
                     <div class="oidc-grid">
