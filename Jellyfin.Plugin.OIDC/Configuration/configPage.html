@@ -75,8 +75,15 @@
                 <fieldset class="verticalSection-extrabottompadding oidc-mb-lg">
                     <legend class="sectionTitle">Email to existing user mappings</legend>
                     <p class="fieldDescription">Select the provider, exact verified email, and existing Jellyfin user. Enable “Trusted for email-based account linking” on the provider. Mapped local users keep their existing password login; SSO is added to the same account, even if global migration is enabled. Login allowlists and role policies still apply. Administrator accounts cannot be mapped.</p>
-                    <div id="emailUserMappingList"></div>
-                    <button type="button" id="btnAddEmailUserMapping" is="emby-button" class="raised">Add email mapping</button>
+                    <div class="oidc-email-mappings">
+                        <div id="emailUserMappingList"></div>
+                        <div class="oidc-email-new">
+                            <h3>Add another mapping</h3>
+                            <div id="emailUserMappingDraft"></div>
+                            <button type="button" id="btnAddEmailUserMapping" is="emby-button" class="raised button-submit">Add mapping</button>
+                            <p class="fieldDescription">Add the mapping, then save your changes below.</p>
+                        </div>
+                    </div>
                 </fieldset>
                 <fieldset class="verticalSection-extrabottompadding oidc-flush">
                     <legend class="sectionTitle oidc-mb-md" data-str="loginPage.legend">Login Page</legend>
@@ -182,6 +189,21 @@
         /* Borders/backgrounds use a neutral grey alpha so the page stays legible on
            both the dark dashboard and Jellyfin's light themes. */
         .oidc-tabs { margin-bottom:1.5em; }
+        .oidc-email-mapping { border:1px solid rgba(127,127,127,.35); border-radius:8px; margin-bottom:.65em; overflow:hidden; }
+        .oidc-email-summary { display:flex; align-items:center; gap:1em; padding:1em; cursor:pointer; list-style:none; }
+        .oidc-email-summary::-webkit-details-marker { display:none; }
+        .oidc-email-summary:hover { background:rgba(127,127,127,.1); }
+        .oidc-email-summary:focus-visible { outline:2px solid #00a4dc; outline-offset:-2px; }
+        .oidc-email-summary-text { display:flex; flex-direction:column; gap:.25em; min-width:0; flex:1; }
+        .oidc-email-address { font-weight:600; overflow-wrap:anywhere; }
+        .oidc-email-target { font-size:.9em; opacity:.7; overflow-wrap:anywhere; }
+        .oidc-email-edit { color:#00a4dc; font-size:.9em; flex-shrink:0; }
+        .oidc-email-editor { padding:1em; border-top:1px solid rgba(127,127,127,.25); }
+        .oidc-email-new { margin-top:1.25em; padding:1.25em; border:1px dashed rgba(127,127,127,.45); border-radius:8px; }
+        .oidc-email-new h3 { margin-top:0; }
+        .oidc-email-mappings .oidc-btn-remove { background:#b3261e; color:#fff; border:1px solid #b3261e; }
+        .oidc-email-mappings .oidc-btn-remove:hover { background:#921d17; border-color:#921d17; }
+        .oidc-email-mappings .oidc-btn-remove:focus-visible { outline:2px solid #ef9a9a; outline-offset:2px; }
         /* <legend> doesn't inherit sectionTitle's font-size the way a heading tag does in every
            browser's UA stylesheet fight - pin it explicitly to match. */
         legend.sectionTitle { font-size:17.28px; }

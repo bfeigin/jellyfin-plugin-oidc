@@ -10,7 +10,9 @@ an existing non-administrator Jellyfin user without renaming the account:
 1. Save the Google provider, with **Trusted for email-based account linking** enabled.
 2. Keep **Require a Verified Email** enabled, and add permitted addresses to **Allowed Emails**.
 3. Add a mapping row: select **Google**, enter the full expected address, and select the
-   existing **Jellyfin user**. Save.
+   existing **Jellyfin user**, then click **Add mapping** and **Save**.
+   Added rows collapse to summaries. Click **Edit** to expand a row, then **Done** to collapse it
+   or **Delete mapping** to remove it. Click **Save** to persist edits and deletions.
 4. Existing local-password accounts keep their authentication provider and password.
    Explicit mappings add SSO alongside local login, even when **Migrate Local Users** is enabled.
    Leave **Hide the Username/Password Form** unchecked so both sign-in choices remain visible.

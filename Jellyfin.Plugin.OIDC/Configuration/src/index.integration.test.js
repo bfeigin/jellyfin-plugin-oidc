@@ -202,16 +202,29 @@ describe('index.js default export (full page controller)', () => {
         initPage(view);
         view.dispatchEvent(new Event('viewshow'));
         await flushMicrotasks();
-        view.querySelector('#btnAddEmailUserMapping').click();
-        const target = view.querySelector('#emailmap_user_0');
+        const target = view.querySelector('#emailmap_user_new');
         expect(target.textContent).toContain('Existing Alice');
         expect(target.textContent).not.toContain('Admin');
         target.value = '11111111111111111111111111111111';
-        view.querySelector('#emailmap_email_0').value = ' alice@gmail.com ';
+        view.querySelector('#emailmap_email_new').value = ' alice@gmail.com ';
+        view.querySelector('#btnAddEmailUserMapping').click();
+        const row = view.querySelector('[data-email-mapping]');
+        expect(row.open).toBe(false);
+        expect(row.querySelector('summary').textContent).toContain('alice@gmail.com');
+        expect(row.querySelector('summary').textContent).toContain('Existing Alice');
+        expect(view.querySelector('#emailmap_email_new').value).toBe('');
+        row.querySelector('summary').click();
+        expect(row.open).toBe(true);
+        view.querySelector('#emailmap_email_0').value = ' alice.updated@gmail.com ';
+        view.querySelector('#emailmap_email_0').dispatchEvent(new Event('input', { bubbles: true }));
+        row.querySelector('[data-done-email-mapping]').click();
+        expect(row.open).toBe(false);
+        expect(row.querySelector('summary').textContent).toContain('alice.updated@gmail.com');
+        expect(row.querySelector('[data-remove-email-mapping]').classList.contains('oidc-btn-remove')).toBe(true);
         view.querySelector('#btnSave').click();
         await flushMicrotasks();
         expect(ApiClient.updatePluginConfiguration.mock.calls[0][1].EmailUserMappings).toEqual([
-            { ProviderId: 'google', Email: 'alice@gmail.com', UserId: '11111111111111111111111111111111' }
+            { ProviderId: 'google', Email: 'alice.updated@gmail.com', UserId: '11111111111111111111111111111111' }
         ]);
         view.querySelector('[data-remove-email-mapping]').click();
         view.querySelector('#btnSave').click();
@@ -227,6 +240,22 @@ describe('index.js default export (full page controller)', () => {
         expect(view.querySelector('#emailmap_user_0').value).toBe('11111111111111111111111111111111');
         view.querySelector('#btnSave').click();
         await flushMicrotasks();
+        expect(ApiClient.updatePluginConfiguration.mock.calls[0][1].EmailUserMappings[0].Email).toBe('alice@gmail.com');
+    });
+
+    it('keeps saved rows collapsed and never saves the blank or incomplete add form', async () => {
+        installJellyfinGlobals(makeConfig({ EmailUserMappings: [{ ProviderId: 'google', Email: 'alice@gmail.com', UserId: '11111111111111111111111111111111' }] }));
+        initPage(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await flushMicrotasks();
+        expect(view.querySelector('[data-email-mapping]').open).toBe(false);
+        expect(view.querySelectorAll('[data-email-mapping]')).toHaveLength(1);
+        view.querySelector('#emailmap_email_new').value = 'incomplete@gmail.com';
+        view.querySelector('#btnAddEmailUserMapping').click();
+        expect(view.querySelectorAll('[data-email-mapping]')).toHaveLength(1);
+        view.querySelector('#btnSave').click();
+        await flushMicrotasks();
+        expect(ApiClient.updatePluginConfiguration.mock.calls[0][1].EmailUserMappings).toHaveLength(1);
         expect(ApiClient.updatePluginConfiguration.mock.calls[0][1].EmailUserMappings[0].Email).toBe('alice@gmail.com');
     });
 
