@@ -758,19 +758,22 @@ public class UserSyncServiceTests
             EmailUserMappings = [new EmailUserMapping { ProviderId = "google", Email = "alice@gmail.com", UserId = target.Id.ToString() }]
         };
 
-    [Fact]
-    public async Task ExplicitMapping_ReusesLocalUserWithoutRenaming_AndBindsSubject()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExplicitMapping_AddsSsoAndPreservesLocalPassword_RegardlessOfMigrationOption(bool migrate)
     {
         var target = MakeLocalUser("existing-alice");
         var manager = Substitute.For<IUserManager>();
         manager.GetUserById(target.Id).Returns(target);
-        var config = MappingConfig(target);
+        var config = MappingConfig(target, migrate: migrate);
         _fixture.SetConfiguration(config);
         var service = MakeService(manager);
         var result = await service.SyncUserAsync("alice@gmail.com", "Different Name", "google-sub", " ALICE@gmail.com ", true, "GOOGLE");
         Assert.Equal(target.Id, result);
         Assert.Equal("existing-alice", target.Username);
-        Assert.Equal(OidcProviderId, target.AuthenticationProviderId);
+        Assert.Equal(LocalProviderId, target.AuthenticationProviderId);
+        await manager.DidNotReceive().UpdateUserAsync(Arg.Any<User>());
         Assert.Equal(target.Id.ToString(), _fixture.MapStore.FindBySubject("google", "google-sub")!.UserId);
         Assert.Equal(target.Id, await service.SyncUserAsync("changed-claim", "Other", "google-sub", "alice@gmail.com", true, "google"));
         await manager.DidNotReceive().CreateUserAsync(Arg.Any<string>());
@@ -780,9 +783,8 @@ public class UserSyncServiceTests
     [Theory]
     [InlineData(false, true, true, "sub")]
     [InlineData(true, false, true, "sub")]
-    [InlineData(true, true, false, "sub")]
     [InlineData(true, true, true, "")]
-    public async Task ExplicitMapping_RequiresVerifiedEmailTrustedProviderMigrationAndSubject(bool verified, bool trusted, bool migrate, string subject)
+    public async Task ExplicitMapping_RequiresVerifiedEmailTrustedProviderAndSubject(bool verified, bool trusted, bool migrate, string subject)
     {
         var target = MakeLocalUser("existing-alice");
         var manager = Substitute.For<IUserManager>();

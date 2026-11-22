@@ -74,7 +74,7 @@
                 </fieldset>
                 <fieldset class="verticalSection-extrabottompadding oidc-mb-lg">
                     <legend class="sectionTitle">Email to existing user mappings</legend>
-                    <p class="fieldDescription">Select the provider, exact verified email, and existing Jellyfin user. Enable “Trusted for email-based account linking” on the provider. Local users also require “Migrate Local Users” above, which replaces password login. Login allowlists and role policies still apply. Administrator accounts cannot be mapped.</p>
+                    <p class="fieldDescription">Select the provider, exact verified email, and existing Jellyfin user. Enable “Trusted for email-based account linking” on the provider. Mapped local users keep their existing password login; SSO is added to the same account, even if global migration is enabled. Login allowlists and role policies still apply. Administrator accounts cannot be mapped.</p>
                     <div id="emailUserMappingList"></div>
                     <button type="button" id="btnAddEmailUserMapping" is="emby-button" class="raised">Add email mapping</button>
                 </fieldset>

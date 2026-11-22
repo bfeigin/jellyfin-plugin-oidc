@@ -11,8 +11,9 @@ an existing non-administrator Jellyfin user without renaming the account:
 2. Keep **Require a Verified Email** enabled, and add permitted addresses to **Allowed Emails**.
 3. Add a mapping row: select **Google**, enter the full expected address, and select the
    existing **Jellyfin user**. Save.
-4. For an existing local-password account, enable **Migrate Local Users to SSO on First OIDC Login**.
-   Its first successful mapped login switches authentication to SSO; its local password no longer works.
+4. Existing local-password accounts keep their authentication provider and password.
+   Explicit mappings add SSO alongside local login, even when **Migrate Local Users** is enabled.
+   Leave **Hide the Username/Password Form** unchecked so both sign-in choices remain visible.
 5. Sign in with that Google account. The existing user ID, username, history, and preferences remain.
    Explicit mappings suppress display-name synchronization so Google cannot rename this user.
 
@@ -22,6 +23,9 @@ and each target user has at most one mapping. Save validation rejects incomplete
 A mapping selects an account; it does **not** bypass the login allowlist or grant permissions.
 Existing role mappings still apply; disable **Manage user policy** if you want to retain the
 user's current permissions and library access instead.
+
+The dual-login behavior applies to existing local accounts. An account already migrated to
+OIDC-only remains OIDC-only; this feature does not create passwords or restore an old provider.
 
 The login requires a verified email, a nonempty OIDC subject, and a trusted provider.
 Missing or disabled targets are denied without creating a duplicate account. Administrator

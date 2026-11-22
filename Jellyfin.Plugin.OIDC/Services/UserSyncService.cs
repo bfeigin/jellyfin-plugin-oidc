@@ -214,19 +214,21 @@ public class UserSyncService
 
             var isOidcUser = string.Equals(user.AuthenticationProviderId, oidcProviderId, StringComparison.Ordinal);
 
-            if (!isOidcUser)
+            if (!isOidcUser && explicitMapping != null)
+            {
+                // Explicit mappings add SSO to an existing local account. Preserve its
+                // authentication provider and password, even when global migration is on.
+                var binding = _mapStore.BindOidcLogin(providerId, sub, user.Username,
+                    user.Id.ToString(), mail, emailVerified, trustLink: false);
+                if (binding.Outcome == MapBindOutcome.Conflict)
+                {
+                    throw new InvalidOperationException("The mapped user is already bound to another OIDC identity.");
+                }
+            }
+            else if (!isOidcUser)
             {
                 if (config.MigrateLocalUsers)
                 {
-                    if (explicitMapping != null)
-                    {
-                        var binding = _mapStore.BindOidcLogin(providerId, sub, user.Username,
-                            user.Id.ToString(), mail, emailVerified, trustLink: false);
-                        if (binding.Outcome == MapBindOutcome.Conflict)
-                        {
-                            throw new InvalidOperationException("The mapped user is already bound to another OIDC identity.");
-                        }
-                    }
                     _logger.LogInformation(
                         "Migrating user {Username} from {OldProvider} to OidcAuthProvider (provider={Provider})",
                         user.Username, user.AuthenticationProviderId ?? "none", providerId);
